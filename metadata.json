@@ -1,0 +1,5 @@
+{
+  "name": "AVS Cinematic AI Editor",
+  "description": "Advanced Video Suite (AVS) for professional-grade stabilization, cinematic color restoration, and intelligent reframing powered by Gemini AI.",
+  "requestFramePermissions": []
+}
