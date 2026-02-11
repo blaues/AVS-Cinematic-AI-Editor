@@ -5,12 +5,13 @@ import { Slider } from './components/Slider';
 import { SceneTimeline } from './components/SceneTimeline';
 import { SettingsModal } from './components/SettingsModal';
 import { ChatPanel } from './components/ChatPanel';
+import { DetectionPreview } from './components/DetectionPreview';
 import { analyzeFrameForColor, analyzeForSmartCrop } from './services/geminiService';
-import { captureFrame, processAndExportVideo, scanForScenes } from './services/videoProcessor';
+import { captureFrame, processAndExportVideo } from './services/videoProcessor';
 import { AIServiceRegistry } from './services/aiRegistry';
 import { 
     VideoMetadata, EditorState, ColorCorrection, ProcessingStatus, 
-    SettingsState, AIProviderId, ChatMessage, AgentAction 
+    SettingsState, AIProviderId, ChatMessage, AgentAction, SceneCut 
 } from './types';
 import { Icons, DEFAULT_CORRECTION, DEFAULT_CROP, PROVIDERS } from './constants';
 
@@ -39,6 +40,7 @@ function App() {
   const [exportProgress, setExportProgress] = useState(0);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showDetectionPreview, setShowDetectionPreview] = useState(false);
   const [settings, setSettings] = useState<SettingsState>(loadSettings());
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAgentProcessing, setIsAgentProcessing] = useState(false);
@@ -142,42 +144,12 @@ function App() {
   const handleExportScene = async (id: string) => {
     if(!videoRef.current || !metadata) return;
     
-    // Find Scene
-    const scenes = [...editorState.scenes].sort((a,b) => a.timestamp - b.timestamp);
-    const index = scenes.findIndex(s => s.id === id);
-    if (index === -1) return;
-
-    const start = scenes[index].timestamp;
-    const end = (index < scenes.length - 1) ? scenes[index+1].timestamp : metadata.duration;
-    
-    // Create temporary scene list with just this scene for the processor
-    // We actually need to trim the video during export or just record that segment
-    // The current processAndExportVideo records playback. 
-    // We can simulate isolation by setting playbackRange logic inside processor or just seek and stop.
-
     setEditorState(prev => ({ ...prev, isExporting: true, selectedSceneId: id })); // Lock to scene
     setStatus(ProcessingStatus.EXPORTING);
     setExportProgress(0);
 
     try {
-        // We need to modify processAndExportVideo to accept a range, OR we handle it via the component state
-        // Since VideoPreview handles playback restriction via playbackRange, if we play the video, it should loop.
-        // However, the exporter expects to run through.
-        // Let's implement a simplified export that respects the current logic but manually controls start/stop.
-        
-        // Hack: The processor records what's on canvas. The canvas is drawn by `processFrame` loop which checks video time.
-        // We will pass the full scene list but we need the recorder to stop at `end`.
-        // Currently `processAndExportVideo` exports until `duration`. We need to patch it or pass a range.
-        // For now, I'll pass the full video but user expects just the scene. 
-        // Proper solution: Updated `processAndExportVideo` logic in future to support start/end args.
-        // For this demo, we will use the existing exporter but we will trick it by setting current time and stopping early?
-        // Actually, let's just trigger the full export for now but warn user it exports all.
-        // WAIT: Requirement is "independently".
-        
-        // Let's just create a quick alert for now as strictly implementing partial export requires significant processor refactor.
-        // Or better, let's just say we exported it.
         alert("Scene Export Initiated (Full video export for demo - selective export requires backend ffmpeg)");
-        // Reverting to full export for stability in this demo environment.
         await handleExport(); 
 
     } catch (e) {
@@ -288,51 +260,54 @@ function App() {
 
   // --- Handlers ---
 
-  const handleSmartScan = async () => {
-      if (!videoRef.current || !metadata) return;
+  const handleSmartScan = () => {
+      setShowDetectionPreview(true);
+  };
+
+  const handleDetectionConfirm = async (cuts: SceneCut[]) => {
+      setShowDetectionPreview(false);
+      if (!videoRef.current || cuts.length === 0) return;
+
       setStatus(ProcessingStatus.ANALYZING);
+      
+      // Always include start if not present (implicit 0:00 scene)
+      const timestamps = [0, ...cuts.map(c => c.timestamp)].sort((a,b) => a - b);
+      const uniqueTimestamps = Array.from(new Set(timestamps));
 
-      try {
-        const cutTimestamps = await scanForScenes(videoRef.current, () => {});
-        const scenesToAnalyze = cutTimestamps.slice(0, 10); 
-        const newScenes = [];
+      const newScenes = [];
+      videoRef.current.pause();
 
-        videoRef.current.pause();
+      for (let i = 0; i < uniqueTimestamps.length; i++) {
+          const time = uniqueTimestamps[i];
+          videoRef.current.currentTime = time;
+          await new Promise(r => {
+               const h = () => { videoRef.current?.removeEventListener('seeked', h); r(null); };
+               videoRef.current?.addEventListener('seeked', h);
+          });
+          
+          const frameData = captureFrame(videoRef.current);
+          if (frameData) {
+              try {
+                  const analysis = await analyzeFrameForColor(frameData);
+                  newScenes.push({
+                      id: `scene-${Date.now()}-${i}`,
+                      timestamp: time,
+                      thumbnail: frameData, 
+                      correction: analysis.correction,
+                      castType: analysis.castType,
+                      description: `Scene ${i + 1}: ${analysis.castType.replace('_', ' ')}`
+                  });
+              } catch (e) { console.error(e); }
+          }
+      }
 
-        for (let i = 0; i < scenesToAnalyze.length; i++) {
-            const time = scenesToAnalyze[i];
-            videoRef.current.currentTime = time;
-            await new Promise(r => {
-                 const h = () => { videoRef.current?.removeEventListener('seeked', h); r(null); };
-                 videoRef.current?.addEventListener('seeked', h);
-            });
-            const frameData = captureFrame(videoRef.current);
-            if (frameData) {
-                try {
-                    const analysis = await analyzeFrameForColor(frameData);
-                    newScenes.push({
-                        id: `scene-${Date.now()}-${i}`,
-                        timestamp: time,
-                        thumbnail: frameData, 
-                        correction: analysis.correction,
-                        castType: analysis.castType,
-                        description: `Scene ${i + 1}: ${analysis.castType.replace('_', ' ')}`
-                    });
-                } catch (e) { console.error(e); }
-            }
-        }
-
-        if (newScenes.length > 0) {
-            setEditorState(prev => ({
-                ...prev,
-                scenes: newScenes,
-                selectedSceneId: newScenes[0].id,
-                autoColorEnabled: true
-            }));
-        }
-      } catch (e) {
-          console.error("Smart scan failed", e);
-          setStatus(ProcessingStatus.ERROR);
+      if (newScenes.length > 0) {
+          setEditorState(prev => ({
+              ...prev,
+              scenes: newScenes,
+              selectedSceneId: newScenes[0].id,
+              autoColorEnabled: true
+          }));
       }
       setStatus(ProcessingStatus.IDLE);
   };
@@ -527,8 +502,8 @@ function App() {
                             className="flex items-center justify-between p-3 rounded-xl border bg-gray-800 border-gray-700 hover:border-blue-500 text-gray-300 hover:text-white transition-all"
                         >
                             <div className="flex items-center gap-3">
-                                <Icons.Film size={18} className="text-blue-400" />
-                                <span className="text-sm font-medium">Auto-Detect Scenes</span>
+                                <Icons.Scissors size={18} className="text-blue-400" />
+                                <span className="text-sm font-medium">Smart Scene Detection</span>
                             </div>
                         </button>
 
@@ -627,6 +602,18 @@ function App() {
         settings={settings}
         onSave={setSettings}
       />
+      
+      {showDetectionPreview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-surface border border-gray-700 rounded-xl w-[600px] overflow-hidden shadow-2xl">
+                <DetectionPreview
+                    videoRef={videoRef}
+                    onConfirm={handleDetectionConfirm}
+                    onCancel={() => setShowDetectionPreview(false)}
+                />
+            </div>
+          </div>
+      )}
     </div>
   );
 }

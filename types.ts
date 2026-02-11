@@ -85,3 +85,35 @@ export interface AgentAction {
   payload?: any;
   explanation: string;
 }
+
+// --- Scene Detection Types ---
+
+export interface SceneCut {
+  frameNumber: number;
+  timestamp: number;
+  confidence: number;
+  histogramDistance: number;
+  edgeDifference: number;
+  type: 'candidate' | 'splice' | 'content';
+}
+
+export interface DetectionConfig {
+  histogramThreshold: number;
+  edgeThreshold: number;
+  minSceneDuration: number;
+  flashFrameBrightness: number;
+  flashFrameVariance: number;
+  fadeDetectionWindow: number;
+  temporalDebounce: number;
+}
+
+export interface DetectionDiagnostics {
+  totalFrames: number;
+  rawDetections: number;
+  flashFramesFiltered: number;
+  shortSegmentsMerged: number;
+  fadeDetections: number;
+  finalSceneCount: number;
+  averageSceneDuration: number;
+  confidenceHistogram: number[]; // distribution of confidence scores
+}

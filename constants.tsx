@@ -24,7 +24,9 @@ import {
   AlertCircle,
   Send,
   Sparkles,
-  Trash2
+  Trash2,
+  AlertTriangle,
+  Zap
 } from 'lucide-react';
 
 export const Icons = {
@@ -51,7 +53,9 @@ export const Icons = {
   AlertCircle,
   Send,
   Sparkles,
-  Trash2
+  Trash2,
+  AlertTriangle,
+  Zap
 };
 
 export const DEFAULT_CORRECTION = {
