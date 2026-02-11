@@ -222,7 +222,7 @@ export class AIServiceRegistry {
   private getDefaultModel(provider: AIProviderId): string {
     switch(provider) {
         case 'openai': return 'gpt-4o';
-        case 'groq': return 'llama3-70b-8192';
+        case 'groq': return 'llama-3.3-70b-versatile';
         case 'deepseek': return 'deepseek-chat';
         case 'moonshot': return 'moonshot-v1-8k';
         default: return '';

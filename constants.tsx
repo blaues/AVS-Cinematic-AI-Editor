@@ -72,9 +72,9 @@ export const DEFAULT_CROP = {
 
 export const PROVIDERS = [
   { id: 'google', name: 'Google Gemini', models: ['gemini-3-flash-preview', 'gemini-3-pro-preview'] },
-  { id: 'openai', name: 'OpenAI (ChatGPT)', models: ['gpt-4o', 'gpt-4o-mini'] },
-  { id: 'anthropic', name: 'Anthropic Claude', models: ['claude-3-5-sonnet-20240620'] },
-  { id: 'groq', name: 'Groq', models: ['llama3-70b-8192', 'mixtral-8x7b-32768'] },
-  { id: 'deepseek', name: 'DeepSeek', models: ['deepseek-chat'] },
-  { id: 'moonshot', name: 'Kimi (Moonshot)', models: ['moonshot-v1-8k'] }
+  { id: 'openai', name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'o1-mini'] },
+  { id: 'anthropic', name: 'Anthropic Claude', models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'] },
+  { id: 'groq', name: 'Groq', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'] },
+  { id: 'deepseek', name: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'] },
+  { id: 'moonshot', name: 'Kimi (Moonshot)', models: ['moonshot-v1-8k', 'moonshot-v1-32k'] }
 ];
