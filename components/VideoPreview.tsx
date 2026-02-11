@@ -152,6 +152,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
           ref={videoRef}
           src={metadata.url}
           className="max-w-full max-h-full object-contain transition-all duration-300 ease-out"
+          crossOrigin="anonymous"
           style={{
             filter: getFilterString(activeCorrection),
             transform: transformStyle,
